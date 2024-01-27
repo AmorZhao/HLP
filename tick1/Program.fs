@@ -14,7 +14,7 @@ let polarToCartesianApprox (r,theta) n =
         else List.reduce (*) [1.0..float n]
 
     let power x n =
-        List.init n (fun _ -> x) |> List.fold (*) 1.0    
+        List.init n (fun _ -> x) |> List.fold (*) 1.0    // not necessary
 
 
     let numterm n is_sine = // number of terms 
@@ -33,7 +33,7 @@ let polarToCartesianApprox (r,theta) n =
         if n = 0 then 1.0
         else
             let term i =
-                power (-1.0) i * power x (2 * i) / factorial (2 * i)
+                power (-1.0) i * power x (2 * i) / factorial (2 * i)  // diff (extract?)
             [0..((numterm n false)-1)] |> List.map term |> List.reduce (+)
 
     let x = r * cosine theta n
