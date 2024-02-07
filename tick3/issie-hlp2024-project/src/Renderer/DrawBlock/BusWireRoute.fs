@@ -487,6 +487,7 @@ let snapToNet (model: Model) (wireToRoute: Wire) : Wire =
 
 /// top-level function which replaces autoupdate and implements a smarter version of same
 /// it is called every time a new wire is created, so is easily tested.
+
 /// // Tick 3 - 11: modify it so that you get fewer errors in your test.
 let smartAutoroute (model: Model) (wire: Wire) : Wire =
     let initialWire = (autoroute model wire)
@@ -498,13 +499,22 @@ let smartAutoroute (model: Model) (wire: Wire) : Wire =
 
     let intersectedBoxes = findWireSymbolIntersections model snappedToNetWire 
 
-    match intersectedBoxes.Length with
-    | 0 -> snappedToNetWire
-    | _ ->
-        let shiftedWire =
-            tryShiftVerticalSeg model intersectedBoxes snappedToNetWire
-            |> Option.orElse (tryShiftHorizontalSeg maxCallsToShiftHorizontalSeg model intersectedBoxes snappedToNetWire)
-        Option.defaultValue snappedToNetWire shiftedWire
+    let rec correction correctedWire attempt =
+        if attempt = 0 then
+            correctedWire // Maximum attempts reached, return the current corrected wire
+        else
+            let intersectedBoxes = findWireSymbolIntersections model correctedWire
+            match intersectedBoxes.Length with
+            | 0 -> correctedWire // If no intersections, return the corrected wire
+            | _ ->
+                // Attempt to shift segments to resolve intersections
+                let shiftedWire = 
+                    tryShiftVerticalSeg model intersectedBoxes correctedWire
+                    |> Option.orElse (tryShiftHorizontalSeg maxCallsToShiftHorizontalSeg model intersectedBoxes snappedToNetWire)
+                let newWire = Option.defaultValue correctedWire shiftedWire
+                correction newWire (attempt - 1)
+    let maxCorrectionAttempts = 5
+    correction snappedToNetWire maxCorrectionAttempts
         
 // tick 3 - 11 TODO: look at smartAutoroute in BusWireSeparate.fs 
 
