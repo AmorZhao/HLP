@@ -67,8 +67,7 @@ module TestLib =
                     TestData = test.Samples
                     TestErrors =  resL
                 })
- 
- 
+
             
 (******************************************************************************************
    This submodule contains a set of functions that enable random data generation
@@ -332,6 +331,24 @@ module HLPTick3 =
         |> getOkOrFail
 
 
+    let verticLinePositions =
+        // tick3 7-2: Choose the resolution of the grid small enough to find problems and large enough so that the number of repeated similar errors found is small and the test code executes fast.
+        fromList [-100..20..100]
+        |> map (fun n -> middleOfSheet + {X=0.; Y=float n})
+
+    // tick3 7-1: Create sample data in a Gen<'a> type to test routing between two ports on two different components using GenerateData.product
+    let randomPositions = 
+        product (fun horizPos verticPos -> (horizPos, verticPos)) horizLinePositions verticLinePositions
+
+    let makeTick3Circuit (andPos: XYPos * XYPos) = 
+        let horizPos, verticPos = andPos
+        initSheetModel
+        |> placeSymbol "G1" (GateN(And, 2)) horizPos
+        |> Result.bind (placeSymbol "FF1" DFF verticPos)
+        |> Result.bind (placeWire (portOf "G1" 0) (portOf "FF1" 0))
+        |> Result.bind (placeWire (portOf "FF1" 0) (portOf "G1" 0))
+        |> getOkOrFail
+
 
 //------------------------------------------------------------------------------------------------//
 //-------------------------Example assertions used to test sheets---------------------------------//
@@ -356,6 +373,7 @@ module HLPTick3 =
             Some <| $"Sample {sample}"
 
         /// Fail when sheet contains a wire segment that overlaps (or goes too close to) a symbol outline  
+        /// tick3 7-3: Filter the position samples according to whether the two components overlap (filter such cases out - there is a suitable GenerateData.filter function).
         let failOnWireIntersectsSymbol (sample: int) (sheet: SheetT.Model) =
             let wireModel = sheet.Wire
             wireModel.Wires
@@ -374,8 +392,6 @@ module HLPTick3 =
             |> List.exists (fun ((n1,box1),(n2,box2)) -> (n1 <> n2) && BlockHelpers.overlap2DBox box1 box2)
             |> (function | true -> Some $"Symbol outline intersects another symbol outline in Sample {sample}"
                          | false -> None)
-
-        /// tick3 7-3: Filter the position samples according to whether the two components overlap (filter such cases out - there is a suitable GenerateData.filter function).
 
 
 //---------------------------------------------------------------------------------------//
@@ -440,12 +456,15 @@ module HLPTick3 =
                 dispatch
             |> recordPositionInTest testNum dispatch
 
-        let test5 testNum firstSample dispatch = // 
+        let test5 testNum firstSample dispatch = 
             runTestOnSheets
-                "Horizontally positioned AND + DFF: fail all tests"
+                // tick3 7-1: Create sample data in a Gen<'a> type to test routing between two ports on two different components.
+                "Randomly positioned AND + DFF:  errors in the standard smart routing algorithm"
+                // tick3 7-1: This will be as in the examples 
                 firstSample
-                horizLinePositions
-                makeTest1Circuit
+                // tick3 7-1: but with the 2nd component placed anywhere around the first component using a rectangular 2D grid created from samples using GenerateData.product.
+                randomPositions
+                makeTick3Circuit
                 // tick3 7-4: Have as an assertion something where a sheet falls if any wire segment overlaps a symbol
                 Asserts.failOnWireIntersectsSymbol
                 dispatch

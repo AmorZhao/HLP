@@ -487,27 +487,25 @@ let snapToNet (model: Model) (wireToRoute: Wire) : Wire =
 
 /// top-level function which replaces autoupdate and implements a smarter version of same
 /// it is called every time a new wire is created, so is easily tested.
+/// // Tick 3 - 11: modify it so that you get fewer errors in your test.
 let smartAutoroute (model: Model) (wire: Wire) : Wire =
-    // Tick 3 - 11: modify it so that you get fewer errors in your test.
     let initialWire = (autoroute model wire)
-    
     // Snapping to Net only if model.SnapToNet toggled to be true
     let snappedToNetWire =
         match model.SnapToNet with
+        | true -> snapToNet model initialWire
         | _ -> initialWire // do not snap
-        //| true -> snapToNet model initialWire
 
     let intersectedBoxes = findWireSymbolIntersections model snappedToNetWire 
 
     match intersectedBoxes.Length with
     | 0 -> snappedToNetWire
     | _ ->
-        tryShiftVerticalSeg model intersectedBoxes snappedToNetWire
-        |> Option.orElse (
-            tryShiftHorizontalSeg maxCallsToShiftHorizontalSeg model intersectedBoxes snappedToNetWire
-        )
-        |> Option.defaultValue snappedToNetWire
-   
+        let shiftedWire =
+            tryShiftVerticalSeg model intersectedBoxes snappedToNetWire
+            |> Option.orElse (tryShiftHorizontalSeg maxCallsToShiftHorizontalSeg model intersectedBoxes snappedToNetWire)
+        Option.defaultValue snappedToNetWire shiftedWire
+        
 // tick 3 - 11 TODO: look at smartAutoroute in BusWireSeparate.fs 
 
 //-----------------------------------------------------------------------------------------------------------//
