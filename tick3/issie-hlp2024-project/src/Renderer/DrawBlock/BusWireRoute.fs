@@ -488,7 +488,7 @@ let snapToNet (model: Model) (wireToRoute: Wire) : Wire =
 /// top-level function which replaces autoupdate and implements a smarter version of same
 /// it is called every time a new wire is created, so is easily tested.
 let smartAutoroute (model: Model) (wire: Wire) : Wire =
-     
+    // Tick 3 - 11: modify it so that you get fewer errors in your test.
     let initialWire = (autoroute model wire)
     
     // Snapping to Net only if model.SnapToNet toggled to be true
@@ -508,7 +508,7 @@ let smartAutoroute (model: Model) (wire: Wire) : Wire =
         )
         |> Option.defaultValue snappedToNetWire
    
-
+// tick 3 - 11 TODO: look at smartAutoroute in BusWireSeparate.fs 
 
 //-----------------------------------------------------------------------------------------------------------//
 //---------------------------------------------Top-level Wire Routing Functions------------------------------//

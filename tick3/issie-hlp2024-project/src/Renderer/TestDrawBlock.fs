@@ -173,13 +173,6 @@ module HLPTick3 =
 //------------------------------------------------------------------------------------------------------------------------//
     module Builder =
 
-
-                
-
-            
-
-
-
         /// Place a new symbol with label symLabel onto the Sheet with given position.
         /// Return error if symLabel is not unique on sheet, or if position is outside allowed sheet coordinates (0 - maxSheetCoord).
         /// To be safe place components close to (maxSheetCoord/2.0, maxSheetCoord/2.0).
@@ -382,6 +375,7 @@ module HLPTick3 =
             |> (function | true -> Some $"Symbol outline intersects another symbol outline in Sample {sample}"
                          | false -> None)
 
+        /// tick3 7-3: Filter the position samples according to whether the two components overlap (filter such cases out - there is a suitable GenerateData.filter function).
 
 
 //---------------------------------------------------------------------------------------//
@@ -446,6 +440,17 @@ module HLPTick3 =
                 dispatch
             |> recordPositionInTest testNum dispatch
 
+        let test5 testNum firstSample dispatch = // 
+            runTestOnSheets
+                "Horizontally positioned AND + DFF: fail all tests"
+                firstSample
+                horizLinePositions
+                makeTest1Circuit
+                // tick3 7-4: Have as an assertion something where a sheet falls if any wire segment overlaps a symbol
+                Asserts.failOnWireIntersectsSymbol
+                dispatch
+            |> recordPositionInTest testNum dispatch
+
         /// List of tests available which can be run ftom Issie File Menu.
         /// The first 9 tests can also be run via Ctrl-n accelerator keys as shown on menu
         let testsToRunFromSheetMenu : (string * (int -> int -> Dispatch<Msg> -> Unit)) list =
@@ -456,8 +461,8 @@ module HLPTick3 =
                 "Test2", test2 // example
                 "Test3", test3 // example
                 "Test4", test4 
-                "Test5", fun _ _ _ -> printf "Test5" // dummy test - delete line or replace by real test as needed
-                "Test6", fun _ _ _ -> printf "Test6"
+                "Test5", test5 // tick3 7-5: Use this test to find any errors in the standard smart routing algorithm (it is not perfect).
+                "Test6", fun _ _ _ -> printf "Test6" // dummy test - delete line or replace by real test as needed
                 "Test7", fun _ _ _ -> printf "Test7"
                 "Test8", fun _ _ _ -> printf "Test8"
                 "Next Test Error", fun _ _ _ -> printf "Next Error:" // Go to the nexterror in a test
