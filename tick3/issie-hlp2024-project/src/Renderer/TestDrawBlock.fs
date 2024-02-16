@@ -229,11 +229,31 @@ module HLPTick3 =
 
         // Rotate a symbol
         let rotateSymbol (symLabel: string) (rotate: Rotation) (model: SheetT.Model) : (SheetT.Model) =
-            failwithf "Not Implemented"
+            // failwithf "Not Implemented"
+            let symbols = model.Wire.Symbol.Symbols
+            let findSymbolID map = 
+                map |> Map.filter(fun _ (value:DrawModelType.SymbolT.Symbol) -> value.Component.Label = symLabel)
+            let compList = (findSymbolID symbols) |> Map.toList |> List.map fst    
+            let rotmodel = {model with Wire = {model.Wire with Symbol = (RotateScale.rotateBlock compList model.Wire.Symbol rotate)}}
+            let newModel = {rotmodel with BoundingBoxes = Symbol.getBoundingBoxes rotmodel.Wire.Symbol}
+            let errorComponents =
+                newModel.SelectedComponents
+                |> List.filter (fun sId -> not (Sheet.notIntersectingComponents newModel newModel.BoundingBoxes[sId] sId))
+            {newModel with ErrorComponents = errorComponents}
 
         // Flip a symbol
         let flipSymbol (symLabel: string) (flip: SymbolT.FlipType) (model: SheetT.Model) : (SheetT.Model) =
-            failwithf "Not Implemented"
+            // failwithf "Not Implemented"
+            let symbols = model.Wire.Symbol.Symbols
+            let findSymbolID map = 
+                map|> Map.filter(fun _ (value:DrawModelType.SymbolT.Symbol) -> value.Component.Label = symLabel )
+            let compList = (findSymbolID symbols) |> Map.toList |> List.map fst
+            let flipmodel = {model with Wire = {model.Wire with Symbol = ( RotateScale.flipBlock compList model.Wire.Symbol flip)}}
+            let newModel = {flipmodel with BoundingBoxes = Symbol.getBoundingBoxes flipmodel.Wire.Symbol}
+            let errorComponents =
+                newModel.SelectedComponents
+                |> List.filter ( fun id -> not (Sheet.notIntersectingComponents newModel newModel.BoundingBoxes[id] id))
+            {newModel with ErrorComponents = errorComponents}
 
         /// Add a (newly routed) wire, source specifies the Output port, target the Input port.
         /// Return an error if either of the two ports specified is invalid, or if the wire duplicates and existing one.
@@ -340,13 +360,31 @@ module HLPTick3 =
     let randomPositions = 
         product (fun horizPos verticPos -> (horizPos, verticPos)) horizLinePositions verticLinePositions
 
-    let makeTick3Circuit (andPos: XYPos * XYPos) = 
-        let horizPos, verticPos = andPos
+    let makeTick3Circuit (twoPos: XYPos * XYPos) = 
+        let andPos, ffPos = twoPos
         initSheetModel
-        |> placeSymbol "G1" (GateN(And, 2)) horizPos
-        |> Result.bind (placeSymbol "FF1" DFF verticPos)
+        |> placeSymbol "G1" (GateN(And, 2)) andPos
+        |> Result.bind (placeSymbol "FF1" DFF ffPos)
         |> Result.bind (placeWire (portOf "G1" 0) (portOf "FF1" 0))
         |> Result.bind (placeWire (portOf "FF1" 0) (portOf "G1" 0))
+        |> getOkOrFail
+
+    let makeTestRotateCircuit (andPos: XYPos, rotate: Rotation) = 
+        initSheetModel
+        |> placeSymbol "G1" (GateN(And,2)) andPos
+        |> Result.bind (placeSymbol "FF1" DFF middleOfSheet) // Runs each of these binds which will run the function in brackets.
+        // |> Result.bind (rotateSymbol "G1" rotate)
+        |> Result.bind (placeWire (portOf "G1" 0) (portOf "FF1" 0)) // If successful then continue.
+        |> Result.bind (placeWire (portOf "FF1" 0) (portOf "G1" 0) ) // If fail then return error
+        |> getOkOrFail
+
+    let makeTestFlipCircuit (andPos: XYPos, flip: SymbolT.FlipType) = 
+        initSheetModel
+        |> placeSymbol "G1" (GateN(And,2)) andPos
+        |> Result.bind (placeSymbol "FF1" DFF middleOfSheet) // Runs each of these binds which will run the function in brackets.
+        // |> Result.bind (flipSymbol "G1" flip)
+        |> Result.bind (placeWire (portOf "G1" 0) (portOf "FF1" 0)) // If successful then continue.
+        |> Result.bind (placeWire (portOf "FF1" 0) (portOf "G1" 0) ) // If fail then return error
         |> getOkOrFail
 
 
@@ -392,7 +430,6 @@ module HLPTick3 =
             |> List.exists (fun ((n1,box1),(n2,box2)) -> (n1 <> n2) && BlockHelpers.overlap2DBox box1 box2)
             |> (function | true -> Some $"Symbol outline intersects another symbol outline in Sample {sample}"
                          | false -> None)
-
 
 //---------------------------------------------------------------------------------------//
 //-----------------------------Demo tests on Draw Block code-----------------------------//
@@ -459,13 +496,35 @@ module HLPTick3 =
         let test5 testNum firstSample dispatch = 
             runTestOnSheets
                 // tick3 7-1: Create sample data in a Gen<'a> type to test routing between two ports on two different components.
-                "Randomly positioned AND + DFF:  errors in the standard smart routing algorithm"
+                "Randomly positioned AND + DFF: fail on Wire Intersects Symbol"
                 // tick3 7-1: This will be as in the examples 
                 firstSample
                 // tick3 7-1: but with the 2nd component placed anywhere around the first component using a rectangular 2D grid created from samples using GenerateData.product.
                 randomPositions
                 makeTick3Circuit
                 // tick3 7-4: Have as an assertion something where a sheet falls if any wire segment overlaps a symbol
+                Asserts.failOnWireIntersectsSymbol
+                dispatch
+            |> recordPositionInTest testNum dispatch
+
+        let test6 testNum firstSample dispatch = 
+            runTestOnSheets
+                "Randomly positioned AND + DFF: fail on Wire Intersects Symbol"
+                firstSample
+                randomPositions
+                makeTick3Circuit
+                // makeTestRotateCircuit // rotate
+                Asserts.failOnWireIntersectsSymbol
+                dispatch
+            |> recordPositionInTest testNum dispatch
+
+        let test7 testNum firstSample dispatch = 
+            runTestOnSheets
+                "Randomly positioned AND + DFF: fail on Wire Intersects Symbol"
+                firstSample
+                randomPositions
+                makeTick3Circuit
+                // makeTestFlipCircuit  // flip
                 Asserts.failOnWireIntersectsSymbol
                 dispatch
             |> recordPositionInTest testNum dispatch
@@ -481,9 +540,11 @@ module HLPTick3 =
                 "Test3", test3 // example
                 "Test4", test4 
                 "Test5", test5 // tick3 7-5: Use this test to find any errors in the standard smart routing algorithm (it is not perfect).
-                "Test6", fun _ _ _ -> printf "Test6" // dummy test - delete line or replace by real test as needed
-                "Test7", fun _ _ _ -> printf "Test7"
-                "Test8", fun _ _ _ -> printf "Test8"
+                "Test6", test6 // rotate 
+                "Test7", test7 // flip
+                // "Test6", fun _ _ _ // dummy test
+                // "Test7", fun _ _ _ // dummy test
+                "Test8", fun _ _ _ -> printf "Test8" // dummy test - delete line or replace by real test as needed
                 "Next Test Error", fun _ _ _ -> printf "Next Error:" // Go to the nexterror in a test
 
             ]
